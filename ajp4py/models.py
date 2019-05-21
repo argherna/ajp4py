@@ -291,15 +291,18 @@ class AjpResponse:
                 response_headers = {}
                 for _ in range(headers_sz):
                     header_name_len, = unpack_bytes('>H', buffer)
-                    AJP4PY_LOGGER.debug('header_name_len = %s', header_name_len)
+                    AJP4PY_LOGGER.debug(
+                        'header_name_len = %s', header_name_len)
                     if header_name_len < AjpSendHeaders.CONTENT_TYPE.value:
                         header_n, = unpack_as_string_length(
                             buffer, header_name_len)
                         header_v, = unpack_as_string(buffer)
                     else:
-                        header_n = header_case(AjpSendHeaders(header_name_len).name)
+                        header_n = header_case(
+                            AjpSendHeaders(header_name_len).name)
                         header_v, = unpack_as_string(buffer)
-                    AJP4PY_LOGGER.debug('header_n = %s, header_v = %s', header_n, header_v)
+                    AJP4PY_LOGGER.debug(
+                        'header_n = %s, header_v = %s', header_n, header_v)
                     response_headers[header_n] = header_v
 
                 setattr(ajp_resp, '_response_headers', response_headers)
