@@ -1,0 +1,35 @@
+#!/usr/bin/env python3
+
+from ajp4py import AjpForwardRequest, AjpResponse, AjpRequestDirection, AjpCommand, AjpHeader, AjpAttribute
+from ajp4py.protocol import connect, disconnect, send_and_receive
+import logging
+
+logging.basicConfig(
+      level=getattr(
+          logging,
+          'DEBUG',
+          None))
+          
+# REMOTE_HOST = 'courses.illinois.edu'
+# REQ_URI = '/cisapp/explorer/schedule.xml'
+REMOTE_HOST = 'localhost'
+REQ_URI = '/docs/index.html'
+
+ajp_req = AjpForwardRequest(
+    AjpRequestDirection.WEB_SERVER_TO_SERVLET_CONTAINER, REMOTE_HOST)
+ajp_req.method = AjpCommand.GET
+ajp_req.remote_host = REMOTE_HOST
+ajp_req.req_uri = REQ_URI
+ajp_req.add_request_header(AjpHeader.SC_REQ_ACCEPT, '*/*')
+ajp_req.add_request_header(AjpHeader.SC_REQ_USER_AGENT, 'ajp4py/v1.0')
+tcat_socket = connect(REMOTE_HOST, 8009)
+tcat_resp_buffer = tcat_socket.makefile('rb')
+
+ajp_resp = send_and_receive(tcat_socket, ajp_req, tcat_resp_buffer)
+
+print(ajp_resp.status_code)
+print(ajp_resp.status_msg)
+print(ajp_resp.headers)
+print(ajp_resp.text)
+disconnect(tcat_socket)
+tcat_resp_buffer.close()
