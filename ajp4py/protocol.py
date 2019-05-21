@@ -35,15 +35,17 @@ def disconnect(socket):
     socket.close()
 
 
-def send_and_receive(socket, ajp_request, stream):
+def send_and_receive(socket, ajp_request):
     '''
     Performs the data exchange with the servlet container.
 
     :param socket: socket connection to the servlet container.
     :param ajp_request: request to send to the servlet container.
-    :param stream: bytes object used to receive data.
 
     :return: the AjpResponse object
     '''
+    buffer = socket.makefile('rb')
     socket.sendall(ajp_request.serialize_to_packet())
-    return AjpResponse.parse(stream, ajp_request)
+    ajp_resp = AjpResponse.parse(buffer, ajp_request)
+    buffer.close()
+    return ajp_resp
