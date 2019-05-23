@@ -2,17 +2,21 @@
 protocol.py
 ===========
 
-Manages communications between the servlet container and this 
+Manages communications between the servlet container and this
 library.
 
-This is a low-level module and should be used by the other 
+This is a low-level module and should be used by the other
 modules in this library. However, to have more explicit control
 over interactions, it can be used by clients.
 '''
 
 import socket
-from .models import AjpResponse
+
+from hexdump import hexdump
+
 from . import PROTOCOL_LOGGER
+from .models import AjpResponse
+
 
 def connect(host_name, port):
     '''
@@ -28,29 +32,31 @@ def connect(host_name, port):
     return skt
 
 
-def disconnect(socket):
+def disconnect(skt):
     '''
     Closes the connection on the given socket.
 
-    :param socket: socket to close connection on.
+    :param skt: socket to close connection on.
     '''
-    PROTOCOL_LOGGER.debug('Closing %s', socket)
-    socket.close()
+    PROTOCOL_LOGGER.debug('Closing %s', skt)
+    skt.close()
 
 
-def send_and_receive(socket, ajp_request):
+def send_and_receive(skt, ajp_request):
     '''
     Performs the data exchange with the servlet container.
 
-    :param socket: socket connection to the servlet container.
+    :param skt: socket connection to the servlet container.
     :param ajp_request: request to send to the servlet container.
 
     :return: the AjpResponse object
     '''
-    buffer = socket.makefile('rb')
+    buffer = skt.makefile('rb')
     request_packet = ajp_request.serialize_to_packet()
-    PROTOCOL_LOGGER.debug('request_packet sent:%s', request_packet)
-    socket.sendall(request_packet)
+    PROTOCOL_LOGGER.debug(
+        'request_packet sent:\n%s', hexdump(
+            request_packet, result='return'))
+    skt.sendall(request_packet)
     ajp_resp = AjpResponse.parse(buffer, ajp_request)
     buffer.close()
     return ajp_resp
