@@ -5,26 +5,37 @@ ajpie
 Demonstration of using the raw types of ajp4py.
 '''
 import logging
+import os
 from argparse import ZERO_OR_MORE, ArgumentParser, RawDescriptionHelpFormatter
-
-from ajp4py import AjpAttribute, AjpHeader, get
 from textwrap import dedent
+
+from ajp4py import PROTOCOL_LOGGER, AjpHeader, get
 
 DESC = 'Demonstrate ajp4py'
 
 
 class AjpieDescriptionHelpFormatter(RawDescriptionHelpFormatter):
+    ''' Formats help string when run from the command line.
 
-    def __init__(self, max_help_position=6, *args, **kwargs):
-        # A smaller indent for args help.
+    I copied this from httpie'''
+    def __init__(self, max_help_position=6, *ARGS, **kwargs):
+        # A smaller indent for ARGS help.
         kwargs['max_help_position'] = max_help_position
-        super(AjpieDescriptionHelpFormatter, self).__init__(*args, **kwargs)
+        super(AjpieDescriptionHelpFormatter, self).__init__(*ARGS, **kwargs)
 
     def _split_lines(self, text, width):
         text = dedent(text).strip() + '\n\n'
         return text.splitlines()
 
+
+def print_status_line(ajp_resp):
+    'Print the status line from the AjpResponse object.'
+    print('{0} {1} {2}'.format(ajp_resp.request.protocol,
+                               ajp_resp.status_code, ajp_resp.status_msg))
+
+
 def print_headers(headers):
+    'Prints the given response headers.'
     for hdr in headers:
         if isinstance(hdr, AjpHeader):
             hdr_nm = hdr.name
@@ -36,23 +47,25 @@ def print_headers(headers):
         if isinstance(hdr_v, bytes):
             hdr_v = hdr_v.decode('utf-8')
         print('{}: {}'.format(hdr_nm, hdr_v))
+    print(os.linesep)
+
 
 if __name__ == '__main__':
 
-    parser = ArgumentParser(description=DESC,
+    PARSER = ArgumentParser(description=DESC,
                             formatter_class=AjpieDescriptionHelpFormatter)
 
-    parser.add_argument(
+    PARSER.add_argument(
         'url',
         type=str,
         metavar='<url>',
         help='Url to resource in the form \'ajp://host[:port][/path]\'.')
 
-    parser.add_argument('req_item', nargs=ZERO_OR_MORE,
+    PARSER.add_argument('req_item', nargs=ZERO_OR_MORE,
                         help=r'''
         Optional input types. Separator indicates type.
 
-        ':'  Headers
+        ':'  HEADERS
 
              SC_REQ_ACCEPT:*/* Custom-Header:custom-value1,custom-value2
 
@@ -60,38 +73,73 @@ if __name__ == '__main__':
 
              foo==bar el==toro
         ''')
-    parser.add_argument('-l', '--logging-level', type=str,
+    PARSER.add_argument('-l', '--logging-level', type=str,
                         metavar='DEBUG|INFO|WARNING|ERROR|CRITICAL',
                         default='WARNING',
                         help='Set logging level (default is WARNING)')
-    args = parser.parse_args()
+
+    PARSER.add_argument(
+        '-P',
+        '--protocol-logging',
+        action='store_true',
+        default=False,
+        help='Log connection data sent to the servlet container.')
+
+    PARSER.add_argument(
+        '-p',
+        '--print',
+        metavar='<what>',
+        type=str,
+        default='hb',
+        help='''
+        What to print:
+
+        'H' request HEADERS
+        'B' request body
+        'h' response headers
+        'b' response body
+
+        Default is 'hb'.
+    ''')
+    ARGS = PARSER.parse_args()
 
     logging.basicConfig(
-        level=getattr(logging, args.logging_level.upper(), None))
+        level=getattr(logging, ARGS.logging_level.upper(), None))
 
-    request_headers = {}
-    attributes = {}
-    query_params = []
+    if ARGS.protocol_logging:
+        PROTOCOL_LOGGER.level = logging.DEBUG
+
+    HEADERS = None
+    ATTRIBUTES = None
+    PARAMS = None
 
     # Fill in request items
-    if args.req_item:
-        for item in args.req_item:
+    if ARGS.req_item:
+        for item in ARGS.req_item:
             if ':' in item:
+                if not HEADERS:
+                    HEADERS = {}
                 split_itm = item.split(':')
                 if split_itm[0] in AjpHeader.__members__:
-                    request_headers[AjpHeader.__members__[
+                    HEADERS[AjpHeader.__members__[
                         split_itm[0]]] = split_itm[1]
                 else:
-                    request_headers[split_itm[0]] = split_itm[1]
+                    HEADERS[split_itm[0]] = split_itm[1]
             elif '==' in item:
+                if not params:
+                    params = {}
                 split_itm = item.split('==')
-                query_params.append('='.join(split_itm))
+                params[split_itm[0]] = split_itm[1]
 
-    if len(query_params) > 0:
-        attributes[AjpAttribute.QUERY_STRING] = '&'.join(query_params)
+    AJP_RESP = get(ARGS.url, params=PARAMS, headers=HEADERS,
+                   attributes=ATTRIBUTES)
 
-    AJP_RESP = get(args.url, request_headers=request_headers,
-                   attributes=attributes)
-    print_headers(AJP_RESP.request.request_headers)
-    print_headers(AJP_RESP.headers)
-    print(AJP_RESP)
+    if 'H' in ARGS.print:
+        print_headers(AJP_RESP.request.request_headers)
+
+    if 'h' in ARGS.print:
+        print_status_line(AJP_RESP)
+        print_headers(AJP_RESP.headers)
+
+    if 'b' in ARGS.print:
+        print(AJP_RESP.text)
