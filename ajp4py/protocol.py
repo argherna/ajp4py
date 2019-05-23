@@ -12,6 +12,7 @@ over interactions, it can be used by clients.
 
 import socket
 from .models import AjpResponse
+from . import PROTOCOL_LOGGER
 
 def connect(host_name, port):
     '''
@@ -23,6 +24,7 @@ def connect(host_name, port):
     skt = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     skt.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     skt.connect((host_name, port))
+    PROTOCOL_LOGGER.debug('Connection established:%s', skt)
     return skt
 
 
@@ -32,6 +34,7 @@ def disconnect(socket):
 
     :param socket: socket to close connection on.
     '''
+    PROTOCOL_LOGGER.debug('Closing %s', socket)
     socket.close()
 
 
@@ -45,7 +48,9 @@ def send_and_receive(socket, ajp_request):
     :return: the AjpResponse object
     '''
     buffer = socket.makefile('rb')
-    socket.sendall(ajp_request.serialize_to_packet())
+    request_packet = ajp_request.serialize_to_packet()
+    PROTOCOL_LOGGER.debug('request_packet sent:%s', request_packet)
+    socket.sendall(request_packet)
     ajp_resp = AjpResponse.parse(buffer, ajp_request)
     buffer.close()
     return ajp_resp
