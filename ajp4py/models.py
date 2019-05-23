@@ -77,7 +77,7 @@ class AjpForwardRequest:
     def __init__(self,
                  direction=AjpRequestDirection.WEB_SERVER_TO_SERVLET_CONTAINER,
                  method=None,
-                 protocol='HTTP/1.1',
+                 protocol='AJP/1.3',
                  req_uri=None,
                  remote_addr=None,
                  remote_host=None,
@@ -240,7 +240,7 @@ class AjpResponse:
     @property
     def status_msg(self):
         'Returns the status message'
-        return self._status_msg.decode('utf-8')
+        return self._status_msg
 
     @property
     def headers(self):
@@ -285,13 +285,10 @@ class AjpResponse:
 
                 setattr(ajp_resp, '_response_headers', response_headers)
                 setattr(ajp_resp, '_status_code', status_code)
-                if status_code == status_msg:
-                    setattr(
-                        ajp_resp,
-                        '_status_msg',
-                        lookup_status_by_code(status_code).description)
-                else:
-                    setattr(ajp_resp, '_status_msg', status_msg)
+                setattr(
+                    ajp_resp,
+                    '_status_msg',
+                    lookup_status_by_code(status_code).description)
 
             elif prefix_code == AjpPacketHeadersFromContainer.SEND_BODY_CHUNK:
 
