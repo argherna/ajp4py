@@ -27,6 +27,7 @@ class AjpConnection:
             ajp_response = ajp_conn.send_and_receive(ajp_request)
 
     '''
+
     def __init__(self, host_name, port):
         self._host_name = host_name
         self._port = port
@@ -44,14 +45,22 @@ class AjpConnection:
         return '<AjpConnection: {0}:{1}>'.format(self._host_name, self._port)
 
     def connect(self):
+        'Connect to this AjpConnection\'s host on the given port.'
         self._socket.connect((self._host_name, self._port))
         PROTOCOL_LOGGER.info('Connected {}'.format(self.__repr__()))
 
     def disconnect(self):
+        'Disconnect from the host'
         PROTOCOL_LOGGER.debug('Closing connection...')
         self._socket.close()
 
     def send_and_receive(self, ajp_request):
+        '''Send the request and receive the response.
+
+        :type ajp_request: AjpForwardRequest with all request data.
+        :return: :class:`AjpResponse <AjpResponse>` object
+        :rtype: ajp4py.AjpResponse
+        '''
         buffer = self._socket.makefile('rb')
         request_packet = ajp_request.serialize_to_packet()
         PROTOCOL_LOGGER.debug(

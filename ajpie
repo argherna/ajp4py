@@ -94,7 +94,7 @@ if __name__ == '__main__':
         help='''
         What to print:
 
-        'H' request HEADERS
+        'H' request headers
         'B' request body
         'h' response headers
         'b' response body
