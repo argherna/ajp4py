@@ -6,26 +6,49 @@ Demonstration of using the raw types of ajp4py.
 '''
 import logging
 import os
+import sys
 from argparse import ZERO_OR_MORE, ArgumentParser, RawDescriptionHelpFormatter
 from textwrap import dedent
+from urllib.request import quote
 
-from ajp4py import PROTOCOL_LOGGER, AjpHeader, get
+from ajp4py import (ATTRIBUTE, PROTOCOL_LOGGER, AjpAttribute, AjpHeader,
+                    delete, get, head, options, post, put)
 
 DESC = 'Demonstrate ajp4py'
+
+FORM_ENCODED = 'application/x-www-form-urlencoded'
 
 
 class AjpieDescriptionHelpFormatter(RawDescriptionHelpFormatter):
     ''' Formats help string when run from the command line.
 
     I copied this from httpie'''
-    def __init__(self, max_help_position=6, *ARGS, **kwargs):
-        # A smaller indent for ARGS help.
+
+    def __init__(self, max_help_position=6, *args, **kwargs):
+        # A smaller indent for args help.
         kwargs['max_help_position'] = max_help_position
-        super(AjpieDescriptionHelpFormatter, self).__init__(*ARGS, **kwargs)
+        super(AjpieDescriptionHelpFormatter, self).__init__(*args, **kwargs)
 
     def _split_lines(self, text, width):
         text = dedent(text).strip() + '\n\n'
         return text.splitlines()
+
+def print_request(method, ajp_request, protocol='HTTP/1.1'):
+    '''
+    Prints the request method and host.
+
+    :param method: the method (GET, POST, ....).
+    :param url: the url.
+    :param protocol: (optional) protocol used for the request.
+    '''
+    print('{0} {1} {2}'.format(method, ajp_request.req_uri, protocol))
+    print('Host: {0}'.format(ajp_request.server_name))
+    for attr in ajp_request.request_attributes:
+        if attr.ajp_attr == AjpAttribute.REQ_ATTRIBUTE:
+            attr_nm, attr_val = attr.value
+            print('{0}: {1}'.format(attr_nm, attr_val))
+        else:
+            print('{0}: {1}'.format(attr.ajp_attr.name, attr.value))
 
 
 def print_status_line(ajp_resp):
@@ -35,7 +58,7 @@ def print_status_line(ajp_resp):
 
 
 def print_headers(headers):
-    'Prints the given response headers.'
+    'Prints the given headers.'
     for hdr in headers:
         if isinstance(hdr, AjpHeader):
             hdr_nm = hdr.name
@@ -50,10 +73,229 @@ def print_headers(headers):
     print(os.linesep)
 
 
+def print_content_as_text(content):
+    '''
+    Prints out the given content as text, converting it to 'utf-8' if
+    necessary.
+
+    :param content: the content to print.
+    '''
+    if content:
+        if isinstance(content, bytes):
+            print(content.encode('utf-8'))
+        else:
+            print(content)
+
+
+def parse_headers(req_items):
+    '''
+    Parse and return the headers found that were set on the command line.
+
+    :param req_items: the request items on the command line
+    :return: dict containing the headers or None if not set.
+    '''
+    header_items = list(
+        filter(
+            lambda h: ':' in h and '::' not in h,
+            req_items))
+    headers = None
+    for itm in header_items:
+        if not headers:
+            headers = {}
+        nm, val = itm.split(':')
+        # Favor AjpHeader types as names where possible.
+        if nm in AjpHeader.__members__:
+            headers[AjpHeader.__members__[nm]] = val
+        else:
+            headers[nm] = val
+
+    return headers
+
+
+def parse_form_data_fields(req_items):
+    '''
+    Parse and return url-encoded form fields or None if not specified.
+
+    :param req_items: the request items from the command line.
+    :return: form string with url-encoded <name=value> pairs or None if
+        not set.
+    '''
+    data_items = list(filter(lambda d: '=' in d and '==' not in d, req_items))
+    encoded_data_items = None
+    for itm in data_items:
+        if not encoded_data_items:
+            encoded_data_items = []
+        nm, val = itm.split('=')
+        encoded_data_items.append('='.join([quote(nm), quote(val)]))
+
+    if encoded_data_items:
+        return '&'.join(encoded_data_items)
+    return None
+
+
+def parse_params(req_items):
+    '''
+    Parse and return url-encoded parameter items or None if not specified.
+
+    :param req_items: the request items from the command line.
+    :return: dict of name-value pairs where the values are strings or
+        lists if a name is set more than once on the command line, or
+        None if not set.
+    '''
+    param_items = list(filter(lambda p: '==' in p, req_items))
+    params = None
+    for itm in param_items:
+        if not params:
+            params = {}
+        nm, val = itm.split('==')
+        if nm in params.keys():
+            vals = params[nm]
+            if isinstance(vals, str):
+                vals = [vals]
+            vals.append(val)
+            params[nm] = vals
+        else:
+            params[nm] = val
+
+    return params
+
+
+def parse_request_attributes(req_items):
+    '''
+    Parse and return the attributes found that were set on the command line.
+
+    :param req_items: the request items on the command line
+    :return: List of named tuples that are the request attributes.
+    '''
+    attr_items = list(filter(lambda a: '::' in a, req_items))
+    attributes = None
+    for itm in attr_items:
+        if not attributes:
+            attributes = []
+        nm, val = itm.split('::')
+        attributes.append(ATTRIBUTE(AjpAttribute.REQ_ATTRIBUTE, (nm, val)))
+
+    return attributes
+
+
+def execute(method, url, headers=None, params=None,
+            data=None, attributes=None):
+    '''
+    Executes the given AJP method returning an AjpResponse object.
+
+    :param method: The method to execute.
+    :param url: The url.
+    :param headers: Request headers dict.
+    :param params: url-encoded query string parameters.
+    :param data: data to send to the url.
+    :param attributes: Request attributes.
+    :return: the AjpResponse:
+    '''
+    if method == 'DELETE':
+        return delete(url, headers=headers, attributes=attributes)
+
+    if method == 'GET':
+        return get(url, params=params, headers=headers, attributes=attributes)
+
+    if method == 'HEAD':
+        return head(url, headers=headers, attributes=attributes)
+
+    if method == 'OPTIONS':
+        return options(url, headers=headers, attributes=attributes)
+
+    if method == 'POST':
+        return post(url, data=data, headers=headers, attributes=attributes)
+
+    if method == 'PUT':
+        return put(url, data=data, headers=headers, attributes=attributes)
+
+    raise NotImplementedError('{} not implemented', method)
+
+
+def print_output(print_mask, ajp_response, method, data=None):
+    '''
+    Prints the response according to the print mask.
+
+    The `print_mask` is set by the `--print` option from the command
+    line. The values are:
+
+    'H' request headers
+    'B' request body
+    'h' response headers
+    'b' response body
+
+    If not set on the command line, the default will be to print the
+    response headers and body only. Each item is printed in the order
+    given above.
+
+    :param print_mask: Items to print.
+    :param ajp_response: AjpResponse.
+    :param data: (optional) request body to print
+    '''
+    if 'H' in print_mask:
+        print_request(method, ajp_response.request)
+        print_headers(ajp_response.request.request_headers)
+
+    if 'B' in print_mask:
+        if data:
+            print_content_as_text(data)
+            print(os.linesep)
+
+    if 'h' in print_mask:
+        print_status_line(ajp_response)
+        print_headers(ajp_response.headers)
+
+    if 'b' in print_mask:
+        print_content_as_text(ajp_response.text)
+
+
+def main(args):
+    '''The main.
+
+    :param args: argument Namespace with parsed command-line arguments.
+    :return: the status code from the request, or 1 if something went
+        wrong.
+    '''
+    headers = parse_headers(args.req_item)
+    params = parse_params(args.req_item)
+    data = None
+    if args.form:
+        if not headers:
+            headers = {}
+        data = parse_form_data_fields(args.req_item)
+        headers[AjpHeader.SC_REQ_CONTENT_TYPE] = FORM_ENCODED
+        headers[AjpHeader.SC_REQ_CONTENT_LENGTH] = str(len(data))
+    attributes = parse_request_attributes(args.req_item)
+
+    ajp_response = None
+    try:
+        ajp_response = execute(
+            args.method,
+            args.url,
+            headers=headers,
+            params=params,
+            data=data,
+            attributes=attributes)
+    except NotImplementedError as ne:
+        sys.stderr.write(ne)
+        return 1
+
+    print_output(args.print, ajp_response, args.method, data)
+    return ajp_response.status_code
+
+
 if __name__ == '__main__':
 
     PARSER = ArgumentParser(description=DESC,
                             formatter_class=AjpieDescriptionHelpFormatter)
+
+    PARSER.add_argument(
+        'method',
+        type=str,
+        metavar='<method>',
+        help=r'''
+        HTTP/AJP method to be used for the request (GET, POST, ...)
+        ''')
 
     PARSER.add_argument(
         'url',
@@ -61,7 +303,7 @@ if __name__ == '__main__':
         metavar='<url>',
         help='Url to resource in the form \'ajp://host[:port][/path]\'.')
 
-    PARSER.add_argument('req_item', nargs=ZERO_OR_MORE,
+    PARSER.add_argument('req_item', nargs=ZERO_OR_MORE, metavar='request-item',
                         help=r'''
         Optional input types. Separator indicates type.
 
@@ -72,7 +314,23 @@ if __name__ == '__main__':
         '==' Query parameters added to the end of the url
 
              foo==bar el==toro
+
+        '='  Data fields to be serialized into form data (with -f, --form)
+
+             foo=bar el=toro
+
+        '::' Request attributes to be added to the AJP request
+
+             AJP_ATTR1::value1 AJP_ATTR2::value2
         ''')
+
+    PARSER.add_argument('-f', '--form', action='store_true', default=False,
+                        help=r'''
+        Data items from the command line are serialized into form fields.
+
+        The Content-Type is set to application/x-www-form-urlencoded (if not
+        specified).''')
+
     PARSER.add_argument('-l', '--logging-level', type=str,
                         metavar='DEBUG|INFO|WARNING|ERROR|CRITICAL',
                         default='WARNING',
@@ -91,7 +349,7 @@ if __name__ == '__main__':
         metavar='<what>',
         type=str,
         default='hb',
-        help='''
+        help=r'''
         What to print:
 
         'H' request headers
@@ -101,6 +359,7 @@ if __name__ == '__main__':
 
         Default is 'hb'.
     ''')
+
     ARGS = PARSER.parse_args()
 
     logging.basicConfig(
@@ -109,37 +368,4 @@ if __name__ == '__main__':
     if ARGS.protocol_logging:
         PROTOCOL_LOGGER.level = logging.DEBUG
 
-    HEADERS = None
-    ATTRIBUTES = None
-    PARAMS = None
-
-    # Fill in request items
-    if ARGS.req_item:
-        for item in ARGS.req_item:
-            if ':' in item:
-                if not HEADERS:
-                    HEADERS = {}
-                split_itm = item.split(':')
-                if split_itm[0] in AjpHeader.__members__:
-                    HEADERS[AjpHeader.__members__[
-                        split_itm[0]]] = split_itm[1]
-                else:
-                    HEADERS[split_itm[0]] = split_itm[1]
-            elif '==' in item:
-                if not params:
-                    params = {}
-                split_itm = item.split('==')
-                params[split_itm[0]] = split_itm[1]
-
-    AJP_RESP = get(ARGS.url, params=PARAMS, headers=HEADERS,
-                   attributes=ATTRIBUTES)
-
-    if 'H' in ARGS.print:
-        print_headers(AJP_RESP.request.request_headers)
-
-    if 'h' in ARGS.print:
-        print_status_line(AJP_RESP)
-        print_headers(AJP_RESP.headers)
-
-    if 'b' in ARGS.print:
-        print(AJP_RESP.text)
+    sys.exit(main(ARGS))

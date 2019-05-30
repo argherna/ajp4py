@@ -6,6 +6,7 @@ Basic objects used for communication bodies with a servlet container.
 '''
 import logging
 import struct
+from collections import namedtuple
 
 from . import AJP4PY_LOGGER
 from .ajp_types import (AjpAttribute, AjpHeader, AjpPacketHeadersFromContainer,
@@ -15,6 +16,9 @@ from .ajp_types import (AjpAttribute, AjpHeader, AjpPacketHeadersFromContainer,
 # Used by AjpForwardRequest to avoid magic numbers.
 DEFAULT_REQUEST_SERVER_PORT = 80
 
+# AjpForwardRequest uses this namedtuple for building a list of request 
+# attributes.
+ATTRIBUTE = namedtuple('Attribute', 'ajp_attr, value')
 
 def pack_as_string(string):
     'Returns the bytes object after packing the string'
@@ -72,12 +76,14 @@ class AjpForwardRequest:
     :param server_port: target port of this request.
     '''
 
+    MAX_REQUEST_LENGTH = 8186
+
     # pylint: disable=too-many-instance-attributes
 
     def __init__(self,
                  direction=AjpRequestDirection.WEB_SERVER_TO_SERVLET_CONTAINER,
                  method=None,
-                 protocol='AJP/1.3',
+                 protocol='HTTP/1.1',
                  req_uri=None,
                  remote_addr=None,
                  remote_host=None,
@@ -85,7 +91,8 @@ class AjpForwardRequest:
                  server_port=DEFAULT_REQUEST_SERVER_PORT,
                  is_ssl=False,
                  request_headers={},
-                 attributes={}):
+                 attributes=[],
+                 data_stream=None):
         self._direction = direction
         self._method = method
         self._protocol = protocol
@@ -98,6 +105,7 @@ class AjpForwardRequest:
         self._num_headers = 0
         self._request_headers = request_headers
         self._attributes = attributes
+        self._data_stream = data_stream
 
     @property
     def method(self):
@@ -145,9 +153,14 @@ class AjpForwardRequest:
         return self._request_headers
 
     @property
-    def attributes(self):
+    def request_attributes(self):
         'Returns the `attributes` for this AjpForwardRequest'
         return self._attributes
+
+    @property
+    def data_stream(self):
+        'Returns the data for this AjpForwardRequest'
+        return self._data_stream
 
     def __repr__(self):
         return '<AjpForwardRequest: [%s], remote_host=%s, req_uri=%s, request_headers=%s>' % (
@@ -155,6 +168,32 @@ class AjpForwardRequest:
 
     def serialize_to_packet(self):
         'Returns the bytes object to send to the servlet container.'
+        return self._serialize_forward_request()
+
+    def serialize_data_to_packet(self):
+        '''Generator that serializes the request body into packets to 
+        the servlet container.'''
+        if not self._data_stream:
+            return
+        data = self._data_stream.read(self.MAX_REQUEST_LENGTH)
+        while True:
+            if len(data) > 0:
+                packet = struct.pack('>H', len(data))
+                packet += data
+                packet_header = struct.pack(
+                    '>bbH',
+                    self._direction.first_bytes[0],
+                    self._direction.first_bytes[1],
+                    len(packet))
+                yield packet_header + packet
+            else:
+                yield struct.pack('>bbH', self._direction.first_bytes[0],
+                                  self._direction.first_bytes[1], 0x00)
+                break
+            data = self._data_stream.read(self.MAX_REQUEST_LENGTH)
+
+    def _serialize_forward_request(self):
+        'Serializes the forward request.'
         packet = b''
         packet = struct.pack(
             'bb',
@@ -182,7 +221,7 @@ class AjpForwardRequest:
         Returns the bytes object containing the number of headers and the
         serialized headers.
         '''
-        hdr_packet = struct.pack('>h', self._num_headers)
+        hdr_packet = struct.pack('>h', len(self._request_headers))
         for hdr_name in self._request_headers:
             if isinstance(hdr_name, AjpHeader):
                 # Need to split the code into 2 bytes before packing it.
@@ -200,15 +239,16 @@ class AjpForwardRequest:
     def _serialize_attributes(self):
         ' Returns the bytes object containing the serialized attributes.'
         attr_packet = b''
-        for attr_name in self._attributes:
-            if isinstance(attr_name, AjpAttribute):
-                attr_packet += struct.pack('b', attr_name.code)
+        for attr in self._attributes:
+            # Assume self._attributes contain only ATTRIBUTE types 
+            # whose name field is a type of AjpAttribute
+            attr_packet += struct.pack('b', attr.ajp_attr.code)
+            if attr.ajp_attr == AjpAttribute.REQ_ATTRIBUTE:
+                nm, val = attr.value
+                attr_packet += pack_as_string(nm)
+                attr_packet += pack_as_string(val)
             else:
-                attr_packet += pack_as_string(attr_name)
-            attr_val = self._attributes[attr_name]
-            if isinstance(attr_val, list):
-                attr_val = ','.join(attr_val)
-            attr_packet += pack_as_string(self._attributes[attr_name])
+                attr_packet += pack_as_string(attr.value)
 
         attr_packet += struct.pack('B', AjpAttribute.ARE_DONE.code)
         return attr_packet
@@ -235,7 +275,7 @@ class AjpResponse:
     @property
     def status_code(self):
         'Returns the status code.'
-        return int(self._status_code)
+        return self._status_code
 
     @property
     def status_msg(self):
@@ -257,6 +297,11 @@ class AjpResponse:
         'Returns the content as text for this response'
         return self._content.decode('utf-8')
 
+    @property
+    def content(self):
+        'Returns content as bytes'
+        return self._content
+
     @staticmethod
     def parse(buffer, ajp_request):
         'Parses the response buffer and returns the AjpResponse'
@@ -268,7 +313,7 @@ class AjpResponse:
             if prefix_code == AjpPacketHeadersFromContainer.SEND_HEADERS:
 
                 status_code, = unpack_bytes('>H', buffer)
-                status_msg, = unpack_as_string(buffer)
+                _, = unpack_as_string(buffer)
                 headers_sz, = unpack_bytes('>H', buffer)
                 response_headers = {}
                 for _ in range(headers_sz):
