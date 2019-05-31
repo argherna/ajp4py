@@ -72,10 +72,27 @@ class AjpForwardRequest:
     See https://tomcat.apache.org/connectors-doc/ajp/ajpv13a.html
 
     :param direction: AjpRequestDirection for this request.
-    :param host_name: target host of this request.
-    :param server_port: target port of this request.
+    :param method: AjpCommand for the method to use.
+    :param protocol: (optional) protocol to set. This is only sent as
+        part of the request and is metadata from what I can tell. 
+    :param req_url: (optional) request uri, which is the path of the
+        url sent to the servlet container.
+    :param remote_addr: IP address of the host sending the request.
+    :param remote_host: name of the host sending the request.
+    :param server_name: name of the server to receive the request.
+    :param server_port: (optional) target port on the server. This is
+        only sent as part of the request and is metadata from what I
+        can tell.
+    :param is_ssl: (optional) boolean flag indicating that the request
+        is SSL (default is False).
+    :param request_headers: dictionary of HTTP request headers.
+    :param attributes: list of ATTRIBUTE named tuples that are AJP
+        attributes sent to the request.
+    :param data_stream: (optional) File-like object containing the 
+        request data (e.g. json, form data, or binary data).
     '''
 
+    # AJP's maximum buffer size for sending data.
     MAX_REQUEST_LENGTH = 8186
 
     # pylint: disable=too-many-instance-attributes
@@ -304,7 +321,15 @@ class AjpResponse:
 
     @staticmethod
     def parse(buffer, ajp_request):
-        'Parses the response buffer and returns the AjpResponse'
+        '''
+        Parses the response buffer and returns the AjpResponse.
+
+        :param buffer: file-like object containing the response data.
+        :param ajp_request: AjpForwardRequest that generated this
+            response.
+        :return: :class:`AjpResponse <AjpResponse>` object
+        :rtype: ajp4py.AjpResponse
+        '''
         ajp_resp = AjpResponse()
         resp_content = b''
         while True:

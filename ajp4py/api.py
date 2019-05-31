@@ -7,9 +7,9 @@ Implements the API for sending AJP requests.
 import socket
 from io import BytesIO
 from urllib.parse import urlparse
-from urllib.request import quote
+
 from .ajp_types import DEFAULT_AJP_SERVER_PORT, AjpCommand
-from .models import ATTRIBUTE, AjpAttribute, AjpForwardRequest, AjpHeader
+from .models import ATTRIBUTE, AjpAttribute, AjpForwardRequest
 from .protocol import AjpConnection
 
 
@@ -49,10 +49,11 @@ def params_to_query_string(params):
             query.append('='.join([nm, val]))
 
     query_string = None
-    if len(query) > 0:
+    if query:
         query_string = ATTRIBUTE(AjpAttribute.QUERY_STRING, '&'.join(query))
     return query_string
 
+# pylint: disable=too-many-arguments
 
 def request(ajp_cmd, url, params=None, data=None, headers=None,
             attributes=None):
@@ -75,7 +76,7 @@ def request(ajp_cmd, url, params=None, data=None, headers=None,
     port = parsed_url.port or DEFAULT_AJP_SERVER_PORT
 
     if params:
-        query_string_attr = params_to_query_string(params)        
+        query_string_attr = params_to_query_string(params)
         if not attributes:
             attributes = []
         attributes.append(query_string_attr)

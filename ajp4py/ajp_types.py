@@ -1,11 +1,15 @@
 '''
 ajp_types.py
+
+Types used by ajp4py. Provides enum types to avoid the use of magic
+numbers in the code.
 '''
 from enum import Enum, IntEnum
 
 # No magic numbers! I **HATE** them! Use these enums instead.
 
 DEFAULT_AJP_SERVER_PORT = 8009
+
 
 class AjpPacketHeadersToContainer(IntEnum):
     ''' Enumeration of the packets sent from a web server to a

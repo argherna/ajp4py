@@ -33,15 +33,18 @@ class AjpieDescriptionHelpFormatter(RawDescriptionHelpFormatter):
         text = dedent(text).strip() + '\n\n'
         return text.splitlines()
 
-def print_request(method, ajp_request, protocol='HTTP/1.1'):
+
+def print_request(ajp_request):
     '''
     Prints the request method and host.
 
-    :param method: the method (GET, POST, ....).
-    :param url: the url.
-    :param protocol: (optional) protocol used for the request.
+    :param ajp_request: the AjpRequest sent to the servlet container.
     '''
-    print('{0} {1} {2}'.format(method, ajp_request.req_uri, protocol))
+    print(
+        '{0} {1} {2}'.format(
+            ajp_request.method.name,
+            ajp_request.req_uri,
+            ajp_request.protocol))
     print('Host: {0}'.format(ajp_request.server_name))
     for attr in ajp_request.request_attributes:
         if attr.ajp_attr == AjpAttribute.REQ_ATTRIBUTE:
@@ -209,7 +212,7 @@ def execute(method, url, headers=None, params=None,
     if method == 'PUT':
         return put(url, data=data, headers=headers, attributes=attributes)
 
-    raise NotImplementedError('{} not implemented', method)
+    raise NotImplementedError('{0} not implemented'.format(method))
 
 
 def print_output(print_mask, ajp_response, method, data=None):
@@ -219,10 +222,10 @@ def print_output(print_mask, ajp_response, method, data=None):
     The `print_mask` is set by the `--print` option from the command
     line. The values are:
 
-    'H' request headers
-    'B' request body
-    'h' response headers
-    'b' response body
+    - `H` request headers
+    - `B` request body
+    - `h` response headers
+    - `b` response body
 
     If not set on the command line, the default will be to print the
     response headers and body only. Each item is printed in the order
@@ -230,10 +233,10 @@ def print_output(print_mask, ajp_response, method, data=None):
 
     :param print_mask: Items to print.
     :param ajp_response: AjpResponse.
-    :param data: (optional) request body to print
+    :param data: (optional) request body to print.
     '''
     if 'H' in print_mask:
-        print_request(method, ajp_response.request)
+        print_request(ajp_response.request)
         print_headers(ajp_response.request.request_headers)
 
     if 'B' in print_mask:
