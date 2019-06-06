@@ -68,6 +68,7 @@ class AjpConnection:
         attrs.append(ATTRIBUTE(AjpAttribute.REQ_ATTRIBUTE,
                                ('AJP_LOCAL_ADDR',
                                 self._socket.getsockname()[0])))
+        PROTOCOL_LOGGER.debug('Request attributes: %s', ajp_request.request_attributes)
         # Serialize the non-data part of the request.
         request_packet = ajp_request.serialize_to_packet()
         self._socket.sendall(request_packet)

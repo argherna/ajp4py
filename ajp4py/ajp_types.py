@@ -189,6 +189,9 @@ class AjpAttribute(Enum):
     def __str__(self):
         return self.ajp_attr_name
 
+    def __repr__(self):
+        return '<AjpAttribute: {0}, {1}>'.format(self.ajp_attr_name, self.ajp_code)
+
 
 class AjpSendHeaders(Enum):
     '''Enumeration of known response headers.
