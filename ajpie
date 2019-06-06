@@ -195,13 +195,13 @@ def execute(method, url, headers=None, params=None,
     :return: the AjpResponse:
     '''
     if method == 'DELETE':
-        return delete(url, headers=headers, attributes=attributes)
+        return delete(url, params=params, headers=headers, attributes=attributes)
 
     if method == 'GET':
         return get(url, params=params, headers=headers, attributes=attributes)
 
     if method == 'HEAD':
-        return head(url, headers=headers, attributes=attributes)
+        return head(url, params=params, headers=headers, attributes=attributes)
 
     if method == 'OPTIONS':
         return options(url, headers=headers, attributes=attributes)
@@ -210,7 +210,7 @@ def execute(method, url, headers=None, params=None,
         return post(url, data=data, headers=headers, attributes=attributes)
 
     if method == 'PUT':
-        return put(url, data=data, headers=headers, attributes=attributes)
+        return put(url, data=data, params=params, headers=headers, attributes=attributes)
 
     raise NotImplementedError('{0} not implemented'.format(method))
 
