@@ -17,6 +17,7 @@ from ajp4py import (ATTRIBUTE, PROTOCOL_LOGGER, AjpAttribute, AjpHeader,
 DESC = 'Demonstrate ajp4py'
 
 FORM_ENCODED = 'application/x-www-form-urlencoded'
+APPLICATION_JSON = 'application/json'
 
 
 class AjpieDescriptionHelpFormatter(RawDescriptionHelpFormatter):
@@ -136,6 +137,22 @@ def parse_form_data_fields(req_items):
     return None
 
 
+def parse_json_data_fields(req_items):
+    '''
+    Parse request items as json fields and return a dict of those items.
+
+    :param req_items: the request items from the command line.
+    :return: dict of json items.
+    '''
+    data_items = list(filter(lambda d: '=' in d and '==' not in d, req_items))
+    req_json = {}
+    for itm in data_items:
+        nm, val = itm.split('=')
+        req_json[nm] = val
+    
+    return req_json
+
+
 def parse_params(req_items):
     '''
     Parse and return url-encoded parameter items or None if not specified.
@@ -207,7 +224,7 @@ def execute(method, url, headers=None, params=None,
         return options(url, headers=headers, attributes=attributes)
 
     if method == 'POST':
-        return post(url, data=data, headers=headers, attributes=attributes)
+        return post(url, params=params, data=data, headers=headers, attributes=attributes)
 
     if method == 'PUT':
         return put(url, data=data, params=params, headers=headers, attributes=attributes)
@@ -265,8 +282,15 @@ def main(args):
     if args.form:
         if not headers:
             headers = {}
-        data = parse_form_data_fields(args.req_item)
         headers[AjpHeader.SC_REQ_CONTENT_TYPE] = FORM_ENCODED
+        data = parse_form_data_fields(args.req_item)
+    elif args.json:
+        if not headers:
+            headers = {}
+        headers[AjpHeader.SC_REQ_CONTENT_TYPE] = APPLICATION_JSON
+        data = parse_json_data_fields(args.req_item)
+        
+    if data:
         headers[AjpHeader.SC_REQ_CONTENT_LENGTH] = str(len(data))
     attributes = parse_request_attributes(args.req_item)
 
@@ -333,6 +357,12 @@ if __name__ == '__main__':
 
         The Content-Type is set to application/x-www-form-urlencoded (if not
         specified).''')
+
+    PARSER.add_argument('-j', '--json', action='store_true', default=False,
+                        help=r'''
+        Data items from the command line are serialized into a json object.
+        
+        The Content-Type is set to application/json (if not specified).''')
 
     PARSER.add_argument('-l', '--logging-level', type=str,
                         metavar='DEBUG|INFO|WARNING|ERROR|CRITICAL',

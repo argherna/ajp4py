@@ -5,6 +5,7 @@ api.py
 Implements the API for sending AJP requests.
 '''
 import socket
+from json import dumps
 from io import BytesIO
 from urllib.parse import urlparse
 
@@ -83,7 +84,10 @@ def request(ajp_cmd, url, params=None, data=None, headers=None,
 
     io_data = None
     if data:
-        io_data = data_to_bytes(data)
+        if isinstance(data, dict):
+            io_data = data_to_bytes(dumps(data))
+        else:
+            io_data = data_to_bytes(data)
     ajp_req = AjpForwardRequest(method=ajp_cmd,
                                 req_uri=parsed_url.path,
                                 remote_addr=socket.gethostbyname(
