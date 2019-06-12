@@ -12,7 +12,8 @@ from io import BytesIO
 
 from . import PROTOCOL_LOGGER
 from .models import (ATTRIBUTE, AjpAttribute, AjpPacketHeadersFromContainer,
-                     AjpResponse, unpack_bytes)
+                     AjpResponse)
+from .utils import unpack_bytes
 
 
 class AjpConnection:

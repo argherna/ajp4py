@@ -12,6 +12,8 @@ from . import AJP4PY_LOGGER
 from .ajp_types import (AjpAttribute, AjpHeader, AjpPacketHeadersFromContainer,
                         AjpPacketHeadersToContainer, AjpRequestDirection,
                         AjpSendHeaders, header_case, lookup_status_by_code)
+from .utils import (pack_as_string, unpack_as_string, unpack_as_string_length,
+                    unpack_bytes)
 
 # pylint: disable=C0103,R0902,R0913,R0914,W0102
 
@@ -23,49 +25,6 @@ DEFAULT_REQUEST_SERVER_PORT = 80
 ATTRIBUTE = namedtuple('Attribute', 'ajp_attr, value')
 
 
-def pack_as_string(string):
-    'Returns the bytes object after packing the string'
-    if not string:
-        return struct.pack('>h', -1)
-
-    string_len = len(string)
-    return struct.pack(
-        '>H%dsb' % string_len, string_len, string.encode('utf8'), 0)
-
-
-def unpack_bytes(fmt, buffer):
-    '''Unpacks bytes from the buffer using the given fmt.
-
-    fmt is the same as struct.
-
-    :param fmt: format string for unpacking the bytes.
-    :param buffer: buffer containing the bytes to unpack.
-    :return: tuple containing the values unpacked according to the
-    fmt string.
-
-    See https://docs.python.org/3/library/struct.html#format-strings
-    '''
-    size = struct.calcsize(fmt)
-    chunk = buffer.read(size)
-    return struct.unpack(fmt, chunk)
-
-
-def unpack_as_string_length(buffer, length):
-    'Unpacks the buffer for the given length as string.'
-    resp_str = unpack_bytes('%ds' % length, buffer)
-
-    # Skip over null-terminator
-    buffer.read(1)
-    return resp_str
-
-
-def unpack_as_string(buffer):
-    'Unpacks the given buffer as a string and returns it.'
-    str_len = unpack_bytes('>h', buffer)
-    if not str_len:
-        return None
-
-    return unpack_as_string_length(buffer, str_len)
 
 
 class AjpForwardRequest:

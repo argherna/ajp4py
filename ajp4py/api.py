@@ -6,31 +6,14 @@ Implements the API for sending AJP requests.
 '''
 import socket
 from json import dumps
-from io import BytesIO
 from urllib.parse import urlparse
 
 from .ajp_types import DEFAULT_AJP_SERVER_PORT, AjpCommand
 from .models import ATTRIBUTE, AjpAttribute, AjpForwardRequest, AjpHeader
 from .protocol import AjpConnection
+from .utils import data_to_bytes
 
 # pylint: disable=C0103
-
-def data_to_bytes(data):
-    '''
-    Returns a BytesIO type whose content is the byte representation
-    of the given type.
-
-    :param data: the data to convert to bytes.
-    :return: a BytesIO object.
-    '''
-    request_data = None
-    if data is None:
-        request_data = BytesIO(b'')
-    elif isinstance(data, str):
-        request_data = BytesIO(bytearray(data, 'utf-8'))
-    else:
-        request_data = BytesIO(data)
-    return request_data
 
 
 def params_to_query_string(params):
