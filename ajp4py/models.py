@@ -6,14 +6,10 @@ Basic objects used for communication bodies with a servlet container.
 '''
 import struct
 from collections import namedtuple
-from io import BytesIO
 
-from . import AJP4PY_LOGGER
-from .ajp_types import (AjpAttribute, AjpHeader, AjpPacketHeadersFromContainer,
-                        AjpPacketHeadersToContainer, AjpRequestDirection,
-                        AjpSendHeaders, header_case, lookup_status_by_code)
-from .utils import (pack_as_string, unpack_as_string, unpack_as_string_length,
-                    unpack_bytes)
+from .ajp_types import (AjpAttribute, AjpHeader, AjpPacketHeadersToContainer,
+                        AjpRequestDirection)
+from .utils import pack_as_string
 
 # pylint: disable=C0103,R0902,R0913,R0914,W0102
 
@@ -279,84 +275,3 @@ class AjpResponse:
     def content(self):
         'Returns content as bytes'
         return self._content
-
-    @staticmethod
-    def parse(sock, ajp_request, prefix_code=0, resp_buffer=None):
-        '''
-        Parse the response from the servlet container and return the
-        AjpResponse object.
-
-        :param sock: the raw socket to read the response from.
-        :param ajp_request: the request made that will generate the
-            response.
-        :param prefix_code: any previously read prefix code as part
-            of a response from sending data (default is 0).
-        :param resp_buffer: BytesIO object containing and data as part
-            of a response from sending data (default is None).
-        :class:`AjpResponse <AjpResponse>` object
-        :rtype: ajp4py.AjpResponse
-        '''
-        ajp_resp = AjpResponse()
-        _data = b''
-        _resp_buffer = resp_buffer
-        _resp_content = b''
-        _prefix_code = prefix_code
-        while _prefix_code != AjpPacketHeadersFromContainer.END_RESPONSE:
-
-            if not _resp_buffer:
-                _data = sock.recv(5)
-                _magic, _data_len, _prefix_code = unpack_bytes(
-                    '>HHb', BytesIO(_data))
-                _resp_buffer = BytesIO(sock.recv(_data_len - 1))
-
-            if _prefix_code == AjpPacketHeadersFromContainer.SEND_HEADERS:
-
-                status_code, = unpack_bytes('>H', _resp_buffer)
-                _, = unpack_as_string(_resp_buffer)
-                headers_sz, = unpack_bytes('>H', _resp_buffer)
-                response_headers = {}
-                for _ in range(headers_sz):
-                    header_name_len, = unpack_bytes('>H', _resp_buffer)
-                    if header_name_len < AjpSendHeaders.CONTENT_TYPE.value:
-                        header_n, = unpack_as_string_length(
-                            _resp_buffer, header_name_len)
-                        header_v, = unpack_as_string(_resp_buffer)
-                    else:
-                        header_n = header_case(
-                            AjpSendHeaders(header_name_len).name)
-                        header_v, = unpack_as_string(_resp_buffer)
-                    response_headers[header_n] = header_v
-
-                setattr(ajp_resp, '_response_headers', response_headers)
-                setattr(ajp_resp, '_status_code', status_code)
-                setattr(
-                    ajp_resp,
-                    '_status_msg',
-                    lookup_status_by_code(status_code).description)
-
-            elif _prefix_code == AjpPacketHeadersFromContainer.SEND_BODY_CHUNK:
-
-                _data_len, = unpack_bytes('>H', _resp_buffer)
-                _resp_content += _resp_buffer.read(_data_len + 1)
-
-            elif _prefix_code == AjpPacketHeadersFromContainer.END_RESPONSE:
-
-                _, = unpack_bytes('b', _resp_buffer)
-
-            elif _prefix_code == AjpPacketHeadersFromContainer.GET_BODY_CHUNK:
-
-                if _resp_buffer:
-                    _, = unpack_bytes('>H', _resp_buffer)
-
-            else:
-
-                AJP4PY_LOGGER.error(
-                    'Unknown value for _prefix_code:%d', _prefix_code)
-                raise NotImplementedError
-
-            # Clear the response buffer for the next iteration.
-            _resp_buffer = None
-
-        setattr(ajp_resp, '_ajp_request', ajp_request)
-        setattr(ajp_resp, '_content', _resp_content)
-        return ajp_resp
