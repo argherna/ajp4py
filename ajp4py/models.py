@@ -4,15 +4,16 @@ models.py
 
 Basic objects used for communication bodies with a servlet container.
 '''
-import logging
 import struct
-from io import BytesIO
 from collections import namedtuple
+from io import BytesIO
 
 from . import AJP4PY_LOGGER
 from .ajp_types import (AjpAttribute, AjpHeader, AjpPacketHeadersFromContainer,
                         AjpPacketHeadersToContainer, AjpRequestDirection,
                         AjpSendHeaders, header_case, lookup_status_by_code)
+
+# pylint: disable=C0103,R0902,R0913,R0914,W0102
 
 # Used by AjpForwardRequest to avoid magic numbers.
 DEFAULT_REQUEST_SERVER_PORT = 80
@@ -76,7 +77,7 @@ class AjpForwardRequest:
     :param direction: AjpRequestDirection for this request.
     :param method: AjpCommand for the method to use.
     :param protocol: (optional) protocol to set. This is only sent as
-        part of the request and is metadata from what I can tell. 
+        part of the request and is metadata from what I can tell.
     :param req_url: (optional) request uri, which is the path of the
         url sent to the servlet container.
     :param remote_addr: IP address of the host sending the request.
@@ -90,14 +91,12 @@ class AjpForwardRequest:
     :param request_headers: dictionary of HTTP request headers.
     :param attributes: list of ATTRIBUTE named tuples that are AJP
         attributes sent to the request.
-    :param data_stream: (optional) File-like object containing the 
+    :param data_stream: (optional) File-like object containing the
         request data (e.g. json, form data, or binary data).
     '''
 
     # AJP's maximum buffer size for sending data.
     MAX_REQUEST_LENGTH = 8186
-
-    # pylint: disable=too-many-instance-attributes
 
     def __init__(self,
                  direction=AjpRequestDirection.WEB_SERVER_TO_SERVLET_CONTAINER,
@@ -190,13 +189,13 @@ class AjpForwardRequest:
         return self._serialize_forward_request()
 
     def serialize_data_to_packet(self):
-        '''Generator that serializes the request body into packets to 
+        '''Generator that serializes the request body into packets to
         the servlet container.'''
         if not self._data_stream:
             return
         data = self._data_stream.read(self.MAX_REQUEST_LENGTH)
         while True:
-            if len(data) > 0:
+            if data:
                 packet = struct.pack('>H', len(data))
                 packet += data
                 packet_header = struct.pack(
@@ -288,7 +287,7 @@ class AjpResponse:
         self._content = None
 
     def __repr__(self):
-        return '<AjpResponse: [%d, %s]>' % (
+        return '<AjpResponse: [{0}, {1}]>'.format(
             self._status_code, self._status_msg.decode('utf-8'))
 
     @property
@@ -325,7 +324,7 @@ class AjpResponse:
     @staticmethod
     def parse(sock, ajp_request, prefix_code=0, resp_buffer=None):
         '''
-        Parse the response from the servlet container and return the 
+        Parse the response from the servlet container and return the
         AjpResponse object.
 
         :param sock: the raw socket to read the response from.
@@ -392,7 +391,8 @@ class AjpResponse:
 
             else:
 
-                AJP4PY_LOGGER.error('Unknown value for _prefix_code:%d', _prefix_code)
+                AJP4PY_LOGGER.error(
+                    'Unknown value for _prefix_code:%d', _prefix_code)
                 raise NotImplementedError
 
             # Clear the response buffer for the next iteration.

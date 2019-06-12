@@ -13,6 +13,7 @@ from .ajp_types import DEFAULT_AJP_SERVER_PORT, AjpCommand
 from .models import ATTRIBUTE, AjpAttribute, AjpForwardRequest, AjpHeader
 from .protocol import AjpConnection
 
+# pylint: disable=C0103
 
 def data_to_bytes(data):
     '''
@@ -56,6 +57,7 @@ def params_to_query_string(params):
 
 # pylint: disable=too-many-arguments
 
+
 def request(ajp_cmd, url, params=None, data=None, headers=None,
             attributes=None):
     r'''
@@ -85,7 +87,7 @@ def request(ajp_cmd, url, params=None, data=None, headers=None,
     io_data = None
     if data:
         if not headers:
-            headers ={}
+            headers = {}
         if isinstance(data, dict):
             data_str = dumps(data)
             io_data = data_to_bytes(data_str)
@@ -93,7 +95,7 @@ def request(ajp_cmd, url, params=None, data=None, headers=None,
         else:
             io_data = data_to_bytes(data)
             headers[AjpHeader.SC_REQ_CONTENT_LENGTH] = str(len(data))
-            
+
     ajp_req = AjpForwardRequest(method=ajp_cmd,
                                 req_uri=parsed_url.path,
                                 remote_addr=socket.gethostbyname(

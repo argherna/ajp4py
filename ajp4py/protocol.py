@@ -11,8 +11,8 @@ import socket
 from io import BytesIO
 
 from . import PROTOCOL_LOGGER
-from .models import ATTRIBUTE, AjpAttribute, AjpResponse, unpack_bytes, AjpPacketHeadersFromContainer
-from .ajp_types import APPLICATION_JSON, FORM_ENCODED, AjpHeader
+from .models import (ATTRIBUTE, AjpAttribute, AjpPacketHeadersFromContainer,
+                     AjpResponse, unpack_bytes)
 
 
 class AjpConnection:
@@ -72,7 +72,7 @@ class AjpConnection:
                                 str(self._socket.getsockname()[1]))))
         PROTOCOL_LOGGER.debug('Request attributes: %s',
                               ajp_request.request_attributes)
-        
+
         # Serialize the non-data part of the request.
         request_packet = ajp_request.serialize_to_packet()
         self._socket.sendall(request_packet)
@@ -82,7 +82,7 @@ class AjpConnection:
         _resp_buffer = None
         for packet in ajp_request.serialize_data_to_packet():
             # As each data packet is sent, make sure the servlet container
-            # responds with a GET_BODY_CHUNK header and send more if there 
+            # responds with a GET_BODY_CHUNK header and send more if there
             # is any.
             if _prefix_code == AjpPacketHeadersFromContainer.GET_BODY_CHUNK:
                 self._socket.sendall(packet)
@@ -92,7 +92,7 @@ class AjpConnection:
                 _resp_buffer = BytesIO(self._socket.recv(_data_len - 1))
 
         # Data has been sent. Now parse the reply making sure to 'offset'
-        # anything read from the socket already by sending the BytesIO 
+        # anything read from the socket already by sending the BytesIO
         # object if there is one.
         ajp_resp = AjpResponse.parse(
             self._socket, ajp_request, prefix_code=_prefix_code, resp_buffer=_resp_buffer)
