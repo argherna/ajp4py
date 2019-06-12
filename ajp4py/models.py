@@ -21,8 +21,6 @@ DEFAULT_REQUEST_SERVER_PORT = 80
 ATTRIBUTE = namedtuple('Attribute', 'ajp_attr, value')
 
 
-
-
 class AjpForwardRequest:
     '''
     Represents a request to the servlet container.

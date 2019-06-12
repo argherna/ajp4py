@@ -11,9 +11,9 @@ import socket
 from io import BytesIO
 
 from . import PROTOCOL_LOGGER
-from .ajp_types import AjpSendHeaders, header_case, lookup_status_by_code
-from .models import (ATTRIBUTE, AjpAttribute, AjpPacketHeadersFromContainer,
-                     AjpResponse)
+from .ajp_types import (AjpPacketHeadersFromContainer, AjpSendHeaders,
+                        header_case, lookup_status_by_code)
+from .models import ATTRIBUTE, AjpAttribute, AjpResponse
 from .utils import unpack_as_string, unpack_as_string_length, unpack_bytes
 
 # pylint: disable=R0914
@@ -93,7 +93,7 @@ class AjpConnection:
             # is any.
             if _prefix_code == AjpPacketHeadersFromContainer.GET_BODY_CHUNK:
                 self._socket.sendall(packet)
-                _data = self._socket.recv(RESPONSE_HEADER_LENGTH)
+                _data = self._socket.recv(self.RESPONSE_HEADER_LENGTH)
                 _resp_buffer = BytesIO(_data)
                 _, _data_len, _prefix_code = unpack_bytes('>HHb', _resp_buffer)
                 _resp_buffer = BytesIO(self._socket.recv(_data_len - 1))
@@ -114,7 +114,7 @@ class AjpConnection:
         while _prefix_code != AjpPacketHeadersFromContainer.END_RESPONSE:
 
             if not _resp_buffer:
-                _data = self._socket.recv(RESPONSE_HEADER_LENGTH)
+                _data = self._socket.recv(self.RESPONSE_HEADER_LENGTH)
                 _magic, _data_len, _prefix_code = unpack_bytes(
                     '>HHb', BytesIO(_data))
                 _resp_buffer = BytesIO(self._socket.recv(_data_len - 1))
