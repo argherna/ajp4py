@@ -6,6 +6,7 @@ Basic objects used for communication bodies with a servlet container.
 '''
 import logging
 import struct
+from io import BytesIO
 from collections import namedtuple
 
 from . import AJP4PY_LOGGER
@@ -16,9 +17,10 @@ from .ajp_types import (AjpAttribute, AjpHeader, AjpPacketHeadersFromContainer,
 # Used by AjpForwardRequest to avoid magic numbers.
 DEFAULT_REQUEST_SERVER_PORT = 80
 
-# AjpForwardRequest uses this namedtuple for building a list of request 
+# AjpForwardRequest uses this namedtuple for building a list of request
 # attributes.
 ATTRIBUTE = namedtuple('Attribute', 'ajp_attr, value')
+
 
 def pack_as_string(string):
     'Returns the bytes object after packing the string'
@@ -257,7 +259,7 @@ class AjpForwardRequest:
         ' Returns the bytes object containing the serialized attributes.'
         attr_packet = b''
         for attr in self._attributes:
-            # Assume self._attributes contain only ATTRIBUTE types 
+            # Assume self._attributes contain only ATTRIBUTE types
             # whose name field is a type of AjpAttribute
             attr_packet += struct.pack('b', attr.ajp_attr.code)
             if attr.ajp_attr == AjpAttribute.REQ_ATTRIBUTE:
@@ -312,7 +314,8 @@ class AjpResponse:
     @property
     def text(self):
         'Returns the content as text for this response'
-        return self._content.decode('utf-8')
+        # return self._content.decode('utf-8')
+        return self._content
 
     @property
     def content(self):
@@ -320,37 +323,50 @@ class AjpResponse:
         return self._content
 
     @staticmethod
-    def parse(buffer, ajp_request):
+    def parse(sock, ajp_request, prefix_code=0, resp_buffer=None):
         '''
-        Parses the response buffer and returns the AjpResponse.
+        Parse the response from the servlet container and return the 
+        AjpResponse object.
 
-        :param buffer: file-like object containing the response data.
-        :param ajp_request: AjpForwardRequest that generated this
+        :param sock: the raw socket to read the response from.
+        :param ajp_request: the request made that will generate the
             response.
-        :return: :class:`AjpResponse <AjpResponse>` object
+        :param prefix_code: any previously read prefix code as part
+            of a response from sending data (default is 0).
+        :param resp_buffer: BytesIO object containing and data as part
+            of a response from sending data (default is None).
+        :class:`AjpResponse <AjpResponse>` object
         :rtype: ajp4py.AjpResponse
         '''
         ajp_resp = AjpResponse()
-        resp_content = b''
-        while True:
-            _, data_len, prefix_code = unpack_bytes('>HHb', buffer)
+        _data = b''
+        _resp_buffer = resp_buffer
+        _resp_content = b''
+        _prefix_code = prefix_code
+        while _prefix_code != AjpPacketHeadersFromContainer.END_RESPONSE:
 
-            if prefix_code == AjpPacketHeadersFromContainer.SEND_HEADERS:
+            if not _resp_buffer:
+                _data = sock.recv(5)
+                _magic, _data_len, _prefix_code = unpack_bytes(
+                    '>HHb', BytesIO(_data))
+                _resp_buffer = BytesIO(sock.recv(_data_len - 1))
 
-                status_code, = unpack_bytes('>H', buffer)
-                _, = unpack_as_string(buffer)
-                headers_sz, = unpack_bytes('>H', buffer)
+            if _prefix_code == AjpPacketHeadersFromContainer.SEND_HEADERS:
+
+                status_code, = unpack_bytes('>H', _resp_buffer)
+                _, = unpack_as_string(_resp_buffer)
+                headers_sz, = unpack_bytes('>H', _resp_buffer)
                 response_headers = {}
                 for _ in range(headers_sz):
-                    header_name_len, = unpack_bytes('>H', buffer)
+                    header_name_len, = unpack_bytes('>H', _resp_buffer)
                     if header_name_len < AjpSendHeaders.CONTENT_TYPE.value:
                         header_n, = unpack_as_string_length(
-                            buffer, header_name_len)
-                        header_v, = unpack_as_string(buffer)
+                            _resp_buffer, header_name_len)
+                        header_v, = unpack_as_string(_resp_buffer)
                     else:
                         header_n = header_case(
                             AjpSendHeaders(header_name_len).name)
-                        header_v, = unpack_as_string(buffer)
+                        header_v, = unpack_as_string(_resp_buffer)
                     response_headers[header_n] = header_v
 
                 setattr(ajp_resp, '_response_headers', response_headers)
@@ -360,26 +376,28 @@ class AjpResponse:
                     '_status_msg',
                     lookup_status_by_code(status_code).description)
 
-            elif prefix_code == AjpPacketHeadersFromContainer.SEND_BODY_CHUNK:
+            elif _prefix_code == AjpPacketHeadersFromContainer.SEND_BODY_CHUNK:
 
-                data_len, = unpack_bytes('>H', buffer)
-                resp_content += buffer.read(data_len + 1)
-                continue
+                _data_len, = unpack_bytes('>H', _resp_buffer)
+                _resp_content += _resp_buffer.read(_data_len + 1)
 
-            elif prefix_code == AjpPacketHeadersFromContainer.END_RESPONSE:
+            elif _prefix_code == AjpPacketHeadersFromContainer.END_RESPONSE:
 
-                _, = unpack_bytes('b', buffer)
-                break
+                _, = unpack_bytes('b', _resp_buffer)
 
-            elif prefix_code == AjpPacketHeadersFromContainer.GET_BODY_CHUNK:
+            elif _prefix_code == AjpPacketHeadersFromContainer.GET_BODY_CHUNK:
 
-                _, = unpack_bytes('>H', buffer)
+                if _resp_buffer:
+                    _, = unpack_bytes('>H', _resp_buffer)
 
             else:
 
+                AJP4PY_LOGGER.error('Unknown value for _prefix_code:%d', _prefix_code)
                 raise NotImplementedError
 
-        setattr(ajp_resp, '_content', resp_content)
-        setattr(ajp_resp, '_ajp_request', ajp_request)
+            # Clear the response buffer for the next iteration.
+            _resp_buffer = None
 
+        setattr(ajp_resp, '_ajp_request', ajp_request)
+        setattr(ajp_resp, '_content', _resp_content)
         return ajp_resp

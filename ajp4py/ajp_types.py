@@ -10,6 +10,9 @@ from enum import Enum, IntEnum
 
 DEFAULT_AJP_SERVER_PORT = 8009
 
+FORM_ENCODED = 'application/x-www-form-urlencoded'
+APPLICATION_JSON = 'application/json'
+
 
 class AjpPacketHeadersToContainer(IntEnum):
     ''' Enumeration of the packets sent from a web server to a

@@ -8,9 +8,11 @@ library.
 '''
 
 import socket
+from io import BytesIO
 
 from . import PROTOCOL_LOGGER
-from .models import ATTRIBUTE, AjpAttribute, AjpResponse
+from .models import ATTRIBUTE, AjpAttribute, AjpResponse, unpack_bytes, AjpPacketHeadersFromContainer
+from .ajp_types import APPLICATION_JSON, FORM_ENCODED, AjpHeader
 
 
 class AjpConnection:
@@ -26,11 +28,15 @@ class AjpConnection:
 
     '''
 
+    # Receive buffer length
+    RECEIVE_BUFFER_LENGTH = 8192
+
     def __init__(self, host_name, port):
         self._host_name = host_name
         self._port = port
         self._socket = socket.socket(socket.AF_INET6, socket.SOCK_STREAM)
-        self._socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        # self._socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        # self._socket.setblocking(False)
 
     def __enter__(self):
         self.connect()
@@ -59,26 +65,35 @@ class AjpConnection:
         :return: :class:`AjpResponse <AjpResponse>` object
         :rtype: ajp4py.AjpResponse
         '''
-        buffer = self._socket.makefile('rb')
         # Add this socket's local port and address as request attributes.
         attrs = ajp_request.request_attributes
         attrs.append(ATTRIBUTE(AjpAttribute.REQ_ATTRIBUTE,
                                ('AJP_REMOTE_PORT',
                                 str(self._socket.getsockname()[1]))))
-        attrs.append(ATTRIBUTE(AjpAttribute.REQ_ATTRIBUTE,
-                               ('AJP_LOCAL_ADDR',
-                                self._socket.getsockname()[0])))
-        PROTOCOL_LOGGER.debug('Request attributes: %s', ajp_request.request_attributes)
+        PROTOCOL_LOGGER.debug('Request attributes: %s',
+                              ajp_request.request_attributes)
+        
         # Serialize the non-data part of the request.
         request_packet = ajp_request.serialize_to_packet()
         self._socket.sendall(request_packet)
 
         # Serialize the data (if any).
+        _prefix_code = AjpPacketHeadersFromContainer.GET_BODY_CHUNK
+        _resp_buffer = None
         for packet in ajp_request.serialize_data_to_packet():
-            if len(packet) == 4:
-                break
-            self._socket.sendall(packet)
+            # As each data packet is sent, make sure the servlet container
+            # responds with a GET_BODY_CHUNK header and send more if there 
+            # is any.
+            if _prefix_code == AjpPacketHeadersFromContainer.GET_BODY_CHUNK:
+                self._socket.sendall(packet)
+                _data = self._socket.recv(5)
+                _resp_buffer = BytesIO(_data)
+                _, _data_len, _prefix_code = unpack_bytes('>HHb', _resp_buffer)
+                _resp_buffer = BytesIO(self._socket.recv(_data_len - 1))
 
-        ajp_resp = AjpResponse.parse(buffer, ajp_request)
-        buffer.close()
+        # Data has been sent. Now parse the reply making sure to 'offset'
+        # anything read from the socket already by sending the BytesIO 
+        # object if there is one.
+        ajp_resp = AjpResponse.parse(
+            self._socket, ajp_request, prefix_code=_prefix_code, resp_buffer=_resp_buffer)
         return ajp_resp

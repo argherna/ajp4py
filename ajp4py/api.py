@@ -10,7 +10,7 @@ from io import BytesIO
 from urllib.parse import urlparse
 
 from .ajp_types import DEFAULT_AJP_SERVER_PORT, AjpCommand
-from .models import ATTRIBUTE, AjpAttribute, AjpForwardRequest
+from .models import ATTRIBUTE, AjpAttribute, AjpForwardRequest, AjpHeader
 from .protocol import AjpConnection
 
 
@@ -84,10 +84,16 @@ def request(ajp_cmd, url, params=None, data=None, headers=None,
 
     io_data = None
     if data:
+        if not headers:
+            headers ={}
         if isinstance(data, dict):
-            io_data = data_to_bytes(dumps(data))
+            data_str = dumps(data)
+            io_data = data_to_bytes(data_str)
+            headers[AjpHeader.SC_REQ_CONTENT_LENGTH] = str(len(data_str))
         else:
             io_data = data_to_bytes(data)
+            headers[AjpHeader.SC_REQ_CONTENT_LENGTH] = str(len(data))
+            
     ajp_req = AjpForwardRequest(method=ajp_cmd,
                                 req_uri=parsed_url.path,
                                 remote_addr=socket.gethostbyname(
