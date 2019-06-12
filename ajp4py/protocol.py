@@ -106,6 +106,18 @@ class AjpConnection:
         return ajp_resp
 
     def _parse(self, ajp_request, prefix_code=0, resp_buffer=None):
+        '''
+        Parse the response from the servlet container and return the
+        AjpResponse object.
+        :param ajp_request: the request made that will generate the
+            response.
+        :param prefix_code: any previously read prefix code as part
+            of a response from sending data (default is 0).
+        :param resp_buffer: BytesIO object containing and data as part
+            of a response from sending data (default is None).
+        :class:`AjpResponse <AjpResponse>` object
+        :rtype: ajp4py.AjpResponse
+        '''
         ajp_resp = AjpResponse()
         _data = b''
         _resp_buffer = resp_buffer
