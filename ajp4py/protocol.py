@@ -101,28 +101,9 @@ class AjpConnection:
         # Data has been sent. Now parse the reply making sure to 'offset'
         # anything read from the socket already by sending the BytesIO
         # object if there is one.
-        ajp_resp = self._parse(
-            ajp_request, prefix_code=_prefix_code, resp_buffer=_resp_buffer)
-        return ajp_resp
-
-    def _parse(self, ajp_request, prefix_code=0, resp_buffer=None):
-        '''
-        Parse the response from the servlet container and return the
-        AjpResponse object.
-        :param ajp_request: the request made that will generate the
-            response.
-        :param prefix_code: any previously read prefix code as part
-            of a response from sending data (default is 0).
-        :param resp_buffer: BytesIO object containing and data as part
-            of a response from sending data (default is None).
-        :class:`AjpResponse <AjpResponse>` object
-        :rtype: ajp4py.AjpResponse
-        '''
         ajp_resp = AjpResponse()
-        _data = b''
-        _resp_buffer = resp_buffer
         _resp_content = b''
-        _prefix_code = prefix_code
+
         while _prefix_code != AjpPacketHeadersFromContainer.END_RESPONSE:
 
             if not _resp_buffer:
