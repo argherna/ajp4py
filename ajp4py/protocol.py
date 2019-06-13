@@ -42,8 +42,6 @@ class AjpConnection:
         self._host_name = host_name
         self._port = port
         self._socket = socket.socket(socket.AF_INET6, socket.SOCK_STREAM)
-        # self._socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        # self._socket.setblocking(False)
 
     def __enter__(self):
         self.connect()
@@ -72,7 +70,7 @@ class AjpConnection:
         :return: :class:`AjpResponse <AjpResponse>` object
         :rtype: ajp4py.AjpResponse
         '''
-        # Add this socket's local port and address as request attributes.
+        # Add this socket's local port as a request attribute.
         attrs = ajp_request.request_attributes
         attrs.append(ATTRIBUTE(AjpAttribute.REQ_ATTRIBUTE,
                                ('AJP_REMOTE_PORT',
@@ -98,12 +96,12 @@ class AjpConnection:
                 _, _data_len, _prefix_code = unpack_bytes('>HHb', _resp_buffer)
                 _resp_buffer = BytesIO(self._socket.recv(_data_len - 1))
 
-        # Data has been sent. Now parse the reply making sure to 'offset'
-        # anything read from the socket already by sending the BytesIO
-        # object if there is one.
         ajp_resp = AjpResponse()
         _resp_content = b''
 
+        # Data has been sent. Now parse the reply making sure to 'offset'
+        # anything read from the socket already by sending the BytesIO
+        # object if there is one.
         while _prefix_code != AjpPacketHeadersFromContainer.END_RESPONSE:
 
             if not _resp_buffer:
@@ -145,11 +143,6 @@ class AjpConnection:
             elif _prefix_code == AjpPacketHeadersFromContainer.END_RESPONSE:
 
                 _, = unpack_bytes('b', _resp_buffer)
-
-            elif _prefix_code == AjpPacketHeadersFromContainer.GET_BODY_CHUNK:
-
-                if _resp_buffer:
-                    _, = unpack_bytes('>H', _resp_buffer)
 
             else:
 
