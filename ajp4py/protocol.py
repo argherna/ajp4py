@@ -114,21 +114,8 @@ class AjpConnection:
 
                 status_code, = unpack_bytes('>H', _resp_buffer)
                 _, = unpack_as_string(_resp_buffer)
-                headers_sz, = unpack_bytes('>H', _resp_buffer)
-                response_headers = {}
-                for _ in range(headers_sz):
-                    header_name_len, = unpack_bytes('>H', _resp_buffer)
-                    if header_name_len < AjpSendHeaders.CONTENT_TYPE.value:
-                        header_n, = unpack_as_string_length(
-                            _resp_buffer, header_name_len)
-                        header_v, = unpack_as_string(_resp_buffer)
-                    else:
-                        header_n = header_case(
-                            AjpSendHeaders(header_name_len).name)
-                        header_v, = unpack_as_string(_resp_buffer)
-                    response_headers[header_n] = header_v
-
-                setattr(ajp_resp, '_response_headers', response_headers)
+                setattr(ajp_resp, '_response_headers',
+                        self._read_response_headers(_resp_buffer))
                 setattr(ajp_resp, '_status_code', status_code)
                 setattr(
                     ajp_resp,
@@ -156,3 +143,27 @@ class AjpConnection:
         setattr(ajp_resp, '_ajp_request', ajp_request)
         setattr(ajp_resp, '_content', _resp_content)
         return ajp_resp
+
+    @staticmethod
+    def _read_response_headers(resp_buffer):
+        '''
+        Read response headers from the response, parse, and return them.
+
+        :param resp_buffer: BytesIO object containing the header data.
+        :return: dict containing the response headers.
+        '''
+        response_headers = {}
+        headers_sz, = unpack_bytes('>H', resp_buffer)
+        for _ in range(headers_sz):
+            header_name_len, = unpack_bytes('>H', resp_buffer)
+            if header_name_len < AjpSendHeaders.CONTENT_TYPE.value:
+                header_n, = unpack_as_string_length(
+                    resp_buffer, header_name_len)
+                header_v, = unpack_as_string(resp_buffer)
+            else:
+                header_n = header_case(
+                    AjpSendHeaders(header_name_len).name)
+                header_v, = unpack_as_string(resp_buffer)
+            response_headers[header_n] = header_v
+
+        return response_headers
