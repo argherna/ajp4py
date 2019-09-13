@@ -12,7 +12,7 @@ from textwrap import dedent
 from urllib.request import quote
 
 from ajp4py import (ATTRIBUTE, PROTOCOL_LOGGER, AjpAttribute, AjpHeader,
-                    delete, get, head, options, post, put)
+                    copy, delete, get, head, options, post, put)
 
 DESC = 'Demonstrate ajp4py'
 
@@ -34,6 +34,24 @@ class AjpieDescriptionHelpFormatter(RawDescriptionHelpFormatter):
         text = dedent(text).strip() + '\n\n'
         return text.splitlines()
 
+def uri_with_query(ajp_request):
+    '''
+    Returns the request uri with the query string if present.
+    
+    :param ajp_request: the AjpRequest object
+    :return: uri with query string if present.
+    '''
+    q_str = None
+    for req_attr in ajp_request.request_attributes:
+        if req_attr.ajp_attr == AjpAttribute.QUERY_STRING:
+            q_str = req_attr.value
+            break
+    
+    if q_str:
+        return '{0}?{1}'.format(ajp_request.req_uri, q_str)
+    
+    return ajp_request.req_uri
+
 
 def print_request(ajp_request):
     '''
@@ -44,7 +62,7 @@ def print_request(ajp_request):
     print(
         '{0} {1} {2}'.format(
             ajp_request.method.name,
-            ajp_request.req_uri,
+            uri_with_query(ajp_request),
             ajp_request.protocol))
     print('Host: {0}'.format(ajp_request.server_name))
     for attr in ajp_request.request_attributes:
@@ -211,6 +229,8 @@ def execute(method, url, headers=None, params=None,
     :param attributes: Request attributes.
     :return: the AjpResponse:
     '''
+
+    # HTTP methods
     if method == 'DELETE':
         return delete(url, params=params, headers=headers, attributes=attributes)
 
@@ -229,6 +249,10 @@ def execute(method, url, headers=None, params=None,
     if method == 'PUT':
         return put(url, data=data, params=params, headers=headers, attributes=attributes)
 
+    # WebDav methods
+    if method == 'COPY':
+        return copy(url, params=params, headers=headers, attributes=attributes)
+        
     raise NotImplementedError('{0} not implemented'.format(method))
 
 

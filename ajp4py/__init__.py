@@ -41,5 +41,5 @@ from .ajp_types import (AjpAttribute, AjpCommand, AjpHeader,
                         AjpPacketHeadersFromContainer,
                         AjpPacketHeadersToContainer, AjpRequestDirection,
                         AjpSendHeaders, AjpStatus, lookup_status_by_code)
-from .api import delete, get, head, options, post, put, request
+from .api import copy, delete, get, head, options, post, put, request
 from .models import ATTRIBUTE, AjpForwardRequest, AjpResponse

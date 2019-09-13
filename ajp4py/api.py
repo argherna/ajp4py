@@ -168,3 +168,15 @@ def options(url, **kwargs):
     :rtype: ajp4py.AjpResponse
     '''
     return request(AjpCommand.OPTIONS, url, **kwargs)
+
+
+def copy(url, **kwargs):
+    r'''
+    Sends a COPY (WebDav) command to the servlet container.
+
+    :param url: Url in the form `ajp://host[:port][/path]`
+    :param \*\*kwargs: (optional) kwargs that request takes.
+    :return: :class:`AjpResponse <AjpResponse>` object
+    :rtype: ajp4py.AjpResponse
+    '''
+    return request(AjpCommand.COPY, url, **kwargs)
